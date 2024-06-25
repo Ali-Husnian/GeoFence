@@ -5,6 +5,7 @@ import {
   GoogleMap,
   useLoadScript,
   Marker,
+  Polyline,
   Circle,
 } from "@react-google-maps/api";
 
@@ -19,13 +20,15 @@ const options = {
   zoomControl: true,
 };
 
-const geofenceRadius = 5000; // in meters
+const geofenceRadius = 1000; // in meters
 
 function GeofencingMap() {
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [entryExitData, setEntryExitData] = useState([]);
+  const [path, setPath] = useState([]);
+  //   const [prevPosition, setPrevPosition] = useState(null);
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition((position) => {
@@ -52,6 +55,10 @@ function GeofencingMap() {
         time: new Date(),
       };
       setMarkers((current) => [...current, newMarker]);
+      setPath((current) => [
+        ...current,
+        { lat: newMarker.lat, lng: newMarker.lng },
+      ]);
 
       const distance = getDistanceFromLatLonInKm(
         newMarker.lat,
@@ -140,6 +147,14 @@ function GeofencingMap() {
             position={{ lat: marker.lat, lng: marker.lng }}
           />
         ))}
+        <Polyline
+          path={path}
+          options={{
+            strokeColor: "blue",
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+          }}
+        />
       </GoogleMap>
       <div className="p-4">
         <h2 className="text-xl font-bold mb-4">Entry/Exit Log</h2>
