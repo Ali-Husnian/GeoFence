@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useCallback, useRef, useState, useEffect } from "react";
+
+import React, { useCallback, useRef, useState } from "react";
 import {
   GoogleMap,
   useLoadScript,
@@ -8,7 +9,6 @@ import {
   Polyline,
   Circle,
   Autocomplete,
-  DirectionsService,
   DirectionsRenderer,
 } from "@react-google-maps/api";
 
@@ -23,11 +23,13 @@ const options = {
   zoomControl: true,
 };
 
-const geofenceRadius = 10000; // in meters
+const geofenceRadius = 10; // in meters
+const defaultLatitude = 31.492164;
+const defaultLongitude = 74.446499;
 
 function GeofencingMap() {
-  const [latitude, setLatitude] = useState(null);
-  const [longitude, setLongitude] = useState(null);
+  const [latitude, setLatitude] = useState(defaultLatitude);
+  const [longitude, setLongitude] = useState(defaultLongitude);
   const [markers, setMarkers] = useState([]);
   const [entryExitData, setEntryExitData] = useState([]);
   const [path, setPath] = useState([]);
@@ -37,49 +39,7 @@ function GeofencingMap() {
   const [distanceDuration, setDistanceDuration] = useState(null);
 
   const autocompleteRef = useRef();
-  const mapRef = useRef();
-
-  useEffect(() => {
-    navigator.geolocation.getCurrentPosition((position) => {
-      setLatitude(position.coords.latitude);
-      setLongitude(position.coords.longitude);
-    });
-
-    const watchId = navigator.geolocation.watchPosition((position) => {
-      const { latitude, longitude } = position.coords;
-      setLiveTrackingMarker({ lat: latitude, lng: longitude });
-      setPath((current) => [...current, { lat: latitude, lng: longitude }]);
-
-      const distance = getDistanceFromLatLonInKm(
-        latitude,
-        longitude,
-        geofenceCenter.lat,
-        geofenceCenter.lng
-      );
-
-      if (distance < geofenceRadius / 1000) {
-        if (!insideGeofence) {
-          setInsideGeofence(true);
-          alert("Entered geofence zone");
-          setEntryExitData((current) => [
-            ...current,
-            { lat: latitude, lng: longitude, time: new Date(), type: "entry" },
-          ]);
-        }
-      } else {
-        if (insideGeofence) {
-          setInsideGeofence(false);
-          alert("Exited geofence zone");
-          setEntryExitData((current) => [
-            ...current,
-            { lat: latitude, lng: longitude, time: new Date(), type: "exit" },
-          ]);
-        }
-      }
-    });
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [insideGeofence]);
+  const mapRef = useRef(null);
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: "AIzaSyDd-nvVSObBhAlLcpUNKW4dRissQVI4hJ4",
@@ -106,8 +66,8 @@ function GeofencingMap() {
       const distance = getDistanceFromLatLonInKm(
         newMarker.lat,
         newMarker.lng,
-        geofenceCenter.lat,
-        geofenceCenter.lng
+        defaultLatitude,
+        defaultLongitude
       );
 
       if (distance < geofenceRadius / 1000) {
@@ -122,6 +82,14 @@ function GeofencingMap() {
           ...current,
           { ...newMarker, type: "exit" },
         ]);
+      }
+
+      // Check if new marker is inside geofence for live tracking
+      if (distance < geofenceRadius / 1000) {
+        setLiveTrackingMarker({ lat: newMarker.lat, lng: newMarker.lng });
+        setInsideGeofence(true);
+      } else {
+        setInsideGeofence(false);
       }
     },
     [latitude, longitude]
@@ -144,8 +112,8 @@ function GeofencingMap() {
       const distance = getDistanceFromLatLonInKm(
         newMarker.lat,
         newMarker.lng,
-        geofenceCenter.lat,
-        geofenceCenter.lng
+        defaultLatitude,
+        defaultLongitude
       );
 
       if (distance < geofenceRadius / 1000) {
@@ -160,6 +128,14 @@ function GeofencingMap() {
           ...current,
           { ...newMarker, type: "exit" },
         ]);
+      }
+
+      // Check if new marker is inside geofence for live tracking
+      if (distance < geofenceRadius / 1000) {
+        setLiveTrackingMarker({ lat: newMarker.lat, lng: newMarker.lng });
+        setInsideGeofence(true);
+      } else {
+        setInsideGeofence(false);
       }
     }
   };
@@ -197,10 +173,6 @@ function GeofencingMap() {
   if (loadError) return "Error loading maps";
   if (!isLoaded) return "Loading Maps";
 
-  if (latitude === null || longitude === null) {
-    return "Loading location...";
-  }
-
   const center = {
     lat: latitude,
     lng: longitude,
@@ -222,6 +194,15 @@ function GeofencingMap() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleMapTypeChange = () => {
+    const map = mapRef.current;
+    if (map) {
+      const currentMapType = map.getMapTypeId();
+      const newMapType = currentMapType === "roadmap" ? "satellite" : "roadmap";
+      map.setMapTypeId(newMapType);
+    }
   };
 
   return (
@@ -255,7 +236,7 @@ function GeofencingMap() {
       <GoogleMap
         id="map"
         mapContainerStyle={mapContainerStyle}
-        zoom={11}
+        zoom={19}
         center={center}
         options={options}
         onClick={onMapClick}
@@ -277,7 +258,7 @@ function GeofencingMap() {
             position={{ lat: marker.lat, lng: marker.lng }}
           />
         ))}
-        {liveTrackingMarker && (
+        {liveTrackingMarker && insideGeofence && (
           <Marker
             position={liveTrackingMarker}
             icon={{
@@ -314,6 +295,12 @@ function GeofencingMap() {
           </div>
         )}
       </div>
+      <button
+        onClick={handleMapTypeChange}
+        className="absolute top-4 right-4 bg-white border border-gray-300 px-2 py-1 rounded shadow-md z-10"
+      >
+        Toggle Satellite
+      </button>
     </div>
   );
 }
